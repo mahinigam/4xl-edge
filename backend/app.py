@@ -233,17 +233,18 @@ def upscale_image(
         # PRIVACY: Cleanup intermediate data (model stays cached for perf)
         # ====================================================================
         del img_np, img_bgr, output_bgr, output_rgb, output_pil, buffer
-        gc.collect()  # PRIVACY: Purge RAM
-        # ====================================================================
         
         return f"data:{mime_type};base64,{img_base64}"
     
     except Exception as e:
         # PRIVACY: Don't expose internal errors
+        raise gr.Error("Processing failed. Please try a smaller image or different model.")
+
+    finally:
+        # Guarantee cleanup even on exception
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        gc.collect()
-        raise gr.Error("Processing failed. Please try a smaller image or different model.")
+        gc.collect()  # PRIVACY: Purge RAM
 
 
 # ============================================================================

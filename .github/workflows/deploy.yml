@@ -1,95 +1,111 @@
 # =============================================================================
-# 4XL - GitHub Actions CI/CD
-# Automatically deploys to HuggingFace Spaces on push to main
+# 4XL Edge - GitHub Actions CI/CD
 # =============================================================================
 
-name: Deploy to HuggingFace Spaces
+name: 4XL Edge Pipeline
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-  workflow_dispatch:  # Allow manual trigger
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  # Deploy Backend (Gradio API)
-  deploy-backend:
+  # -------------------------------------------------------------
+  # Frontend Checks & Build
+  # -------------------------------------------------------------
+  frontend:
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      contains(join(github.event.commits.*.modified, ','), 'backend/') ||
-      contains(join(github.event.commits.*.added, ','), 'backend/')
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
+          node-version: 20
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci || npm install
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
 
-      - name: Deploy Backend to HuggingFace
+  # -------------------------------------------------------------
+  # Backend Checks
+  # -------------------------------------------------------------
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Test backend imports
+        working-directory: backend
+        run: python -c "import app; print('Backend loaded successfully')"
+
+  # -------------------------------------------------------------
+  # Native Windows App Build
+  # -------------------------------------------------------------
+  build-native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build WinUI 3 App (ARM64)
+        working-directory: native/4xl-edge
+        run: dotnet build -c Release -r win-arm64
+      - name: Build WinUI 3 App (x64)
+        working-directory: native/4xl-edge
+        run: dotnet build -c Release -r win-x64
+
+  # -------------------------------------------------------------
+  # Deploy to HuggingFace (Legacy Web Demo)
+  # -------------------------------------------------------------
+  deploy-hf:
+    needs: [frontend, backend]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Backend to HF
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # Clone existing HF Space (preserves history)
+          if [ -z "$HF_TOKEN" ]; then echo "Skipping HF deploy: no token"; exit 0; fi
           git clone https://mahinigam:$HF_TOKEN@huggingface.co/spaces/mahinigam/4xl-api /tmp/hf-backend
-          
-          # Sync backend/ files → HF Space (excluding .git)
           rsync -av --delete --exclude '.git' backend/ /tmp/hf-backend/
-          
           cd /tmp/hf-backend
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
-          
-          # Only push if there are actual changes
-          if git diff --quiet && git diff --cached --quiet; then
-            echo "No changes to deploy for backend"
-          else
+          if ! git diff --quiet || ! git diff --cached --quiet; then
             git add -A
-            git commit -m "deploy: backend from GitHub @ $(git -C $GITHUB_WORKSPACE rev-parse --short HEAD)"
+            git commit -m "deploy: backend update"
             git push
-            echo "✅ Backend deployed to HuggingFace"
           fi
-
-  # Deploy Frontend (React + Docker)
-  deploy-frontend:
-    runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      contains(join(github.event.commits.*.modified, ','), 'frontend/') ||
-      contains(join(github.event.commits.*.added, ','), 'frontend/')
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Deploy Frontend to HuggingFace
+      - name: Deploy Frontend to HF
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # Clone existing HF Space (preserves history)
+          if [ -z "$HF_TOKEN" ]; then echo "Skipping HF deploy: no token"; exit 0; fi
           git clone https://mahinigam:$HF_TOKEN@huggingface.co/spaces/mahinigam/4xl /tmp/hf-frontend
-          
-          # Sync frontend/ files → HF Space (excluding .git, node_modules, dist, .env)
-          rsync -av --delete \
-            --exclude '.git' \
-            --exclude 'node_modules' \
-            --exclude 'dist' \
-            --exclude '.env' \
-            frontend/ /tmp/hf-frontend/
-          
+          rsync -av --delete --exclude '.git' --exclude 'node_modules' --exclude 'dist' frontend/ /tmp/hf-frontend/
           cd /tmp/hf-frontend
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
-          
-          # Only push if there are actual changes
-          if git diff --quiet && git diff --cached --quiet; then
-            echo "No changes to deploy for frontend"
-          else
+          if ! git diff --quiet || ! git diff --cached --quiet; then
             git add -A
-            git commit -m "deploy: frontend from GitHub @ $(git -C $GITHUB_WORKSPACE rev-parse --short HEAD)"
+            git commit -m "deploy: frontend update"
             git push
-            echo "✅ Frontend deployed to HuggingFace"
           fi

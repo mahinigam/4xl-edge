@@ -18,34 +18,34 @@
 }
 
 :root {
-  /* Peacock Palette */
-  --peacock-teal: #1E6F7A;
-  --peacock-turquoise: #5AAFB8;
-  --peacock-emerald: #2F8F6B;
-  --peacock-indigo: #1B2340;
-  --peacock-deep: #0F2A3D;
-  --peacock-gold: #C8A24A; /* warm premium gold */
+  /* Edge Hardware Palette */
+  --edge-cyan: #00F0FF;
+  --edge-teal: #0A8B95;
+  --edge-violet: #6A00FF;
+  --edge-chrome: #B0C4DE;
+  --edge-obsidian: #090B0E;
+  --edge-obsidian-light: #12161A;
 
-  /* Watercolor Surfaces */
-  --wash-1: rgba(30, 111, 122, 0.12);
-  --wash-2: rgba(90, 175, 184, 0.12);
-  --wash-3: rgba(47, 143, 107, 0.12);
-  --wash-4: rgba(27, 35, 64, 0.14);
-  --wash-5: rgba(200, 162, 74, 0.10);
+  /* Liquid Metal Surfaces */
+  --wash-1: rgba(10, 139, 149, 0.08);
+  --wash-2: rgba(0, 240, 255, 0.05);
+  --wash-3: rgba(106, 0, 255, 0.08);
+  --wash-4: rgba(176, 196, 222, 0.05);
+  --wash-5: rgba(9, 11, 14, 0.9);
 
   /* Base Colors */
-  --color-obsidian: #101A24; /* soft indigo base */
-  --color-obsidian-light: #141F2A;
-  --color-obsidian-lighter: #1A2633;
-  --color-white: #E9EDF1; /* off-white */
-  --color-white-muted: rgba(233, 237, 241, 0.72);
-  --color-white-subtle: rgba(233, 237, 241, 0.45);
+  --color-obsidian: var(--edge-obsidian);
+  --color-obsidian-light: var(--edge-obsidian-light);
+  --color-obsidian-lighter: #1C2228;
+  --color-white: #F0F4F8; 
+  --color-white-muted: rgba(240, 244, 248, 0.72);
+  --color-white-subtle: rgba(240, 244, 248, 0.45);
 
   /* Accents */
-  --color-navy: #1B2C3F;
-  --color-navy-glow: rgba(30, 111, 122, 0.18);
-  --color-navy-accent: #1E6F7A;
-  --color-gold-glow: rgba(200, 162, 74, 0.18);
+  --color-navy: #151A22;
+  --color-navy-glow: rgba(0, 240, 255, 0.15);
+  --color-navy-accent: var(--edge-teal);
+  --color-gold-glow: rgba(106, 0, 255, 0.18);
 
   /* Glass */
   --color-glass-bg: rgba(233, 237, 241, 0.05);

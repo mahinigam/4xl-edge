@@ -5,7 +5,12 @@ import ModelSelector from './components/ModelSelector'
 import FormatSelector from './components/FormatSelector'
 import Button from './components/ui/Button'
 import GlassPanel from './components/ui/GlassPanel'
-import { useUpscaler } from './hooks/useUpscaler'
+import HardwareStatus from './components/ui/HardwareStatus'
+import ModelStatus from './components/ui/ModelStatus'
+import TelemetryPanel from './components/ui/TelemetryPanel'
+import PrivacyCenter from './components/ui/PrivacyCenter'
+import { useInferenceManager } from './services/inference/inferenceManager'
+import { MODES } from './services/inference/providers/providerTypes'
 
 function App() {
   const [inputImage, setInputImage] = useState(null)
@@ -13,7 +18,7 @@ function App() {
   const [model, setModel] = useState('RealESRGAN_x4plus')
   const [format, setFormat] = useState('png')
   
-  const { upscale, result, isLoading, error, reset, mode, toggleMode, progress, provider } = useUpscaler()
+  const { capabilities, enhance, result, telemetry, isLoading, error, reset, mode, setMode, progress } = useInferenceManager()
 
   const handleImageSelect = useCallback((file) => {
     setInputImage(file)
@@ -21,10 +26,10 @@ function App() {
     reset()
   }, [reset])
 
-  const handleUpscale = useCallback(async () => {
+  const handleEnhance = useCallback(async () => {
     if (!inputImage) return
-    await upscale(inputImage, model, format)
-  }, [inputImage, model, format, upscale])
+    await enhance(inputImage, model, format)
+  }, [inputImage, model, format, enhance])
 
   const handleClear = useCallback(() => {
     setInputImage(null)
@@ -32,9 +37,16 @@ function App() {
     reset()
   }, [reset])
 
+  const toggleMode = useCallback(() => {
+    const modes = Object.values(MODES)
+    const nextIndex = (modes.indexOf(mode) + 1) % modes.length
+    setMode(modes[nextIndex])
+  }, [mode, setMode])
+
+  const isCloudMode = telemetry ? telemetry.networkUsed : (mode !== MODES.PRIVACY && (!capabilities || (!capabilities.webgpu.available && !capabilities.wasm.available && !capabilities.platform === 'windows')))
+
   return (
     <div className="app-container">
-      {/* Watercolor background layers */}
       <div className="watercolor-bg" aria-hidden="true">
         <div className="peacock-plume" />
         <div className="watercolor-layer layer-1" />
@@ -44,21 +56,26 @@ function App() {
         <div className="micro-refraction" />
       </div>
 
-      {/* Film grain overlay */}
       <div className="film-grain" aria-hidden="true" />
 
       <main className="main-content">
-        {/* Header */}
         <header className="header">
           <h1 className="logo">
-            <span className="logo-4">4</span>
-            <span className="logo-xl">XL</span>
+            <span className="logo-4">4XL</span>
+            <span className="logo-xl" style={{ color: 'var(--edge-cyan)' }}> EDGE</span>
           </h1>
+          <div className="tagline">Private AI image enhancement. Powered by your hardware.</div>
         </header>
 
-        {/* Main interface */}
+        {/* Dashboard top row */}
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '1rem' }}>
+          <HardwareStatus capabilities={capabilities} activeProvider={telemetry?.provider} />
+          <ModelStatus modelId={model} />
+          <PrivacyCenter isCloudMode={isCloudMode} />
+          <TelemetryPanel telemetry={telemetry} />
+        </div>
+
         <div className="interface-grid">
-          {/* Input Panel */}
           <GlassPanel className="panel-input">
             <h2 className="panel-title">Input</h2>
             <Uploader 
@@ -66,16 +83,10 @@ function App() {
               preview={inputPreview}
               disabled={isLoading}
             />
-            {inputPreview && (
-              <p className="image-info">
-                Max input: 1024×1024px • Output: 4× upscaled
-              </p>
-            )}
           </GlassPanel>
 
-          {/* Output Panel */}
           <GlassPanel className="panel-output">
-            <h2 className="panel-title">Output</h2>
+            <h2 className="panel-title">Result</h2>
             <OutputPanel 
               result={result}
               isLoading={isLoading}
@@ -88,29 +99,24 @@ function App() {
           </GlassPanel>
         </div>
 
-        {/* Controls */}
         <GlassPanel className="controls-panel">
           <div className="controls-grid">
             <ModelSelector value={model} onChange={setModel} disabled={isLoading} />
             <FormatSelector value={format} onChange={setFormat} disabled={isLoading} />
+            
             <div className="selector-group">
-              <label className="selector-label">Processing</label>
+              <label className="selector-label">Edge Policy</label>
               <button
-                className={`mode-toggle ${mode}`}
+                className={`mode-toggle local`}
                 onClick={toggleMode}
                 disabled={isLoading}
-                title={mode === 'local'
-                  ? `Running on your device (${provider === 'webgpu' ? 'WebGPU' : 'WASM'})`
-                  : 'Running on remote server'}
               >
                 <span className="mode-indicator" />
-                <span className="mode-label">
-                  {mode === 'local' ? 'Your Device' : 'Server'}
+                <span className="mode-label" style={{ textTransform: 'capitalize' }}>
+                  {mode}
                 </span>
-                <span className={`provider-badge ${mode === 'local' ? provider : 'cloud'}`}>
-                  {mode === 'local'
-                    ? (provider === 'webgpu' ? 'GPU' : 'CPU')
-                    : 'Cloud'}
+                <span className="provider-badge webgpu">
+                  Policy
                 </span>
               </button>
             </div>
@@ -126,7 +132,7 @@ function App() {
             </Button>
             <Button 
               variant="primary" 
-              onClick={handleUpscale}
+              onClick={handleEnhance}
               disabled={isLoading || !inputImage}
               loading={isLoading}
             >
@@ -135,16 +141,8 @@ function App() {
           </div>
         </GlassPanel>
 
-        {/* Footer */}
-        <footer className="footer">
-          <p>Your images are processed securely and never stored.</p>
-          <p className="footer-links">
-            <a href="https://github.com/mahinigam/4xl" target="_blank" rel="noopener noreferrer">
-              GitHub
-            </a>
-            <span className="separator">•</span>
-            <span>Powered by Real-ESRGAN</span>
-          </p>
+        <footer className="footer" style={{ textAlign: 'center', marginTop: '2rem', color: 'var(--color-white-subtle)', fontSize: '0.85rem' }}>
+          <p>Powered by Real-ESRGAN • Accelerated on Snapdragon PCs</p>
         </footer>
       </main>
     </div>
